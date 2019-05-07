@@ -1,6 +1,5 @@
-import configparser
-import psycopg2
-from sql_queries import create_table_queries, drop_table_queries
+from data_warehouse.db import connect
+from data_warehouse.sql_queries import create_table_queries, drop_table_queries
 
 
 def drop_tables(cur, conn):
@@ -15,18 +14,14 @@ def create_tables(cur, conn):
         conn.commit()
 
 
-def main():
-    config = configparser.ConfigParser()
-    config.read('dwh.cfg')
-
-    conn = psycopg2.connect("host={} dbname={} user={} password={} port={}".format(*config['CLUSTER'].values()))
-    cur = conn.cursor()
-
+def main(verbose=False):
+    cur, conn = connect()
+    if verbose:
+        print("Dropping tables...")
     drop_tables(cur, conn)
+    if verbose:
+        print("Creating tables...")
     create_tables(cur, conn)
-
+    if verbose:
+        print("Done.")
     conn.close()
-
-
-if __name__ == "__main__":
-    main()

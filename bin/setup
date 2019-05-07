@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -e
+
+[[ -z "${PYPI_BASIC_AUTH}" ]] && (echo "ERROR: PYPI_BASIC_AUTH missing in environment"; exit 1)
+
+export PIP_EXTRA_INDEX_URL="https://${PYPI_BASIC_AUTH}@pypi.instaffo.tech/simple"
+
+virtualenv -p python3.6 env \
+    && source env/bin/activate \
+    && pip install --upgrade pip \
+    && pip install -r requirements.txt

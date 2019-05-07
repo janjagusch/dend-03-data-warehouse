@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS staging_events (
+  artist TEXT,
+  auth TEXT,
+  firstName TEXT,
+  gender TEXT,
+  iteminsession INTEGER,
+  lastname TEXT,
+  length FLOAT,
+  level TEXT,
+  location TEXT,
+  method TEXT,
+  page TEXT,
+  registration FLOAT,
+  sessionid INTEGER,
+  song TEXT,
+  status INTEGER,
+  ts BIGINT,
+  useragent TEXT,
+  userid FLOAT
+);
