@@ -13,7 +13,7 @@ AWS_SECRET=<your aws secret>
 Per default, this file is not synchronized with your remote repository, so your credentials stay on your local machine.
 
 ### Virtual Environment
-All necessary packages are listed in the ```requirements.txt```file and can be intalled by executing:
+All necessary packages are listed in the ```requirements.txt```file and can be installed by executing:
 ```
 bin/setup
 ```
@@ -106,6 +106,7 @@ DISTSTYLE all;
 
 #### Dimension Table: Time
 
+
 ```
 CREATE TABLE IF NOT EXISTS users (
      user_id INTEGER NOT NULL PRIMARY KEY,
@@ -119,16 +120,218 @@ DISTSTYLE auto;
 
 #### Staging Table: Events
 
+```
+CREATE TABLE IF NOT EXISTS staging_events (
+         artist TEXT,
+           auth TEXT,
+      firstName TEXT,
+         gender TEXT,
+  iteminsession INTEGER,
+       lastname TEXT,
+         length FLOAT,
+          level TEXT,
+       location TEXT,
+         method TEXT,
+           page TEXT,
+   registration FLOAT,
+      sessionid INTEGER,
+           song TEXT,
+         status INTEGER,
+             ts BIGINT,
+      useragent TEXT,
+         userid FLOAT
+);
+```
+
 #### Staging Table: Songs
+
+```
+CREATE TABLE IF NOT EXISTS staging_songs (
+           song_id TEXT PRIMARY KEY,
+             title VARCHAR(1024),
+          duration FLOAT,
+              year FLOAT,
+         num_songs FLOAT,
+         artist_id TEXT,
+       artist_name VARCHAR(1024),
+   artist_latitude FLOAT,
+  artist_longitude FLOAT,
+   artist_location VARCHAR(1024)
+);
+```
 
 ### ETL
 
+#### Copy
+
+##### Staging Events
+
+```
+COPY staging_events
+FROM '{}'
+CREDENTIALS 'aws_iam_role={}'
+REGION 'us-west-2'
+FORMAT AS JSON '{}';
+```
+
+##### Staging Songs
+
+```
+COPY staging_songs
+FROM '{}'
+CREDENTIALS 'aws_iam_role={}'
+REGION 'us-west-2'
+JSON 'auto';
+```
+
+#### Insert
+
+##### Artists Dimension
+
+```
+INSERT INTO artists
+SELECT artist_id,
+       artist_name AS name,
+       artist_location AS location,
+       artist_latitude AS latitude,
+       artist_longitude AS longitude
+  FROM (SELECT artist_id,
+               artist_name,
+               artist_location,
+               artist_latitude,
+               artist_longitude,
+               row_number() over (partition by artist_id ORDER BY count desc) AS rn
+               FROM (SELECT artist_id,
+                            artist_name,
+                            artist_location,
+                            artist_latitude,
+                            artist_longitude,
+                            count(*) AS count
+                       FROM staging_songs
+                      GROUP BY artist_id, artist_name, artist_location, artist_latitude, artist_longitude) AS temp1) AS temp2
+ WHERE rn = 1
+ ORDER BY artist_id;
+```
+
+##### Songs Dimension
+
+```
+INSERT INTO songs
+SELECT song_id,
+       title,
+       artist_id,
+       year,
+       duration
+  FROM (SELECT song_id,
+               title,
+               artist_id,
+               year,
+               duration,
+               row_number() over (partition by song_id ORDER BY count desc) AS rn
+               FROM (SELECT song_id,
+                            title,
+                            artist_id,
+                            year,
+                            duration,
+                            count(*) AS count
+                       FROM staging_songs
+                      GROUP BY song_id, title, artist_id, year, duration) AS temp1) AS temp2
+ WHERE rn = 1
+ ORDER BY song_id;
+```
+
+##### Time Dimension
+
+```
+INSERT INTO time
+SELECT start_time,
+       date_part(hour, date_time) AS hour,
+       date_part(day, date_time) AS day,
+       date_part(week, date_time) AS week,
+       date_part(month, date_time) AS month,
+       date_part(year, date_time) AS year,
+       date_part(weekday, date_time) AS weekday
+  FROM (SELECT ts AS start_time,
+               '1970-01-01'::date + ts/1000 * interval '1 second' AS date_time
+          FROM staging_events
+         GROUP BY ts) AS temp
+ ORDER BY start_time;
+```
+
+##### Users Dimension
+
+```
+INSERT INTO users
+SELECT user_id::INTEGER,
+       first_name,
+       last_name,
+       gender,
+       level
+  FROM (SELECT userid AS user_id,
+               firstname AS first_name,
+               lastname AS last_name,
+               gender,
+               level
+          FROM staging_events
+         WHERE user_id IS NOT NULL) AS temp
+ GROUP BY user_id, first_name, last_name, gender, level
+ ORDER BY user_id;
+```
+
+##### Songplays Fact
+
+```
+INSERT INTO songplays (start_time,
+                       user_id,
+                       level,
+                       song_id,
+                       artist_id,
+                       session_id,
+                       location,
+                       user_agent)
+SELECT staging_events.ts AS start_time,
+       staging_events.userid::INTEGER AS user_id,
+       staging_events.level,
+       staging_songs.song_id,
+       staging_songs.artist_id,
+       staging_events.sessionid AS session_id,
+       staging_events.location,
+       staging_events.useragent AS user_agent
+  FROM staging_events
+  LEFT join staging_songs
+    ON staging_events.song = staging_songs.title
+   AND staging_events.artist = staging_songs.artist_name
+  LEFT OUTER join songplays
+    ON staging_events.userid = songplays.user_id
+   AND staging_events.ts = songplays.start_time
+ WHERE staging_events.page = 'NextSong'
+   AND staging_events.userid IS NOT NULL
+   AND staging_events.level IS NOT NULL
+   AND staging_songs.song_id IS NOT NULL
+   AND staging_songs.artist_id IS NOT NULL
+   AND staging_events.sessionid IS NOT NULL
+   AND staging_events.location IS NOT NULL
+   AND staging_events.useragent IS NOT NULL
+   AND songplays.songplay_id is NULL
+ ORDER BY start_time, user_id;
+```
+
+
+
 ## Analysis
+
+### Most Popular Artist
 
 ![Most Popular Artists](/plots/most_popular_artists.png)
 
+### Most Popular Song
+
 ![Most Popular Songs](/plots/most_popular_songs.png)
 
+### Song Plays by Gender and Level
+
 ![Song Plays by Gender and Level](/plots/songplays_by_gender_and_level.png)
+
+### Song Plays by Hour
 
 ![Song Plays by Hour](/plots/songplays_by_hour.png)
