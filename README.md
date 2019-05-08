@@ -316,9 +316,9 @@ SELECT staging_events.ts AS start_time,
  ORDER BY start_time, user_id;
 ```
 
-
-
 ## Analysis
+
+Some analysis was performed to demonstrate the usefulness of this data warehouse.
 
 ### Most Popular Artist
 
