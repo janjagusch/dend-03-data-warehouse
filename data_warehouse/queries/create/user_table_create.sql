@@ -1,8 +1,0 @@
-CREATE TABLE IF NOT EXISTS users (
-     user_id INTEGER NOT NULL PRIMARY KEY,
-  first_name VARCHAR NOT NULL,
-   last_name VARCHAR NOT NULL,
-      gender VARCHAR NOT NULL,
-       level VARCHAR NOT NULL
-)
-DISTSTYLE all;
